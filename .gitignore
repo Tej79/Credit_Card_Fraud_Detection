@@ -1,0 +1,6 @@
+.idea*
+creditcard.csv
+mlruns/
+__pycache__/
+*.pyc
+.venv/
