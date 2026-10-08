@@ -1,6 +1,6 @@
 """Train and evaluate credit card fraud models.
 
-Fixes over the original notebook:
+Fixes the following on top of the original .ipynb notebook:
   * time-ordered train/val/test split instead of a random shuffle
   * scaling fit on the training data only (inside the pipeline)
   * every model evaluated on the same, realistically imbalanced data
@@ -149,7 +149,7 @@ def main(data: str, out: str) -> None:
     print("\nValidation results (threshold chosen to minimise cost):")
     print(pd.DataFrame({k: v[2] for k, v in results.items()}).T.round(3).to_string())
 
-    # Pick by validation PR-AUC, then look at the test set once.
+    # Pick by validation PR-AUC, then test with test set.
     best = max(results, key=lambda k: results[k][2]["pr_auc"])
     model, thr, _ = results[best]
     test_scores = model.predict_proba(X_te)[:, 1]

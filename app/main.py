@@ -18,10 +18,10 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-# so `from features import make_features` works whether this is run from
+# this is so that `from features import make_features` works whether this is run from
 # the repo root or from inside app/
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from features import V_COLS, make_features  # noqa: E402
+from features import V_COLS, make_features
 
 ARTIFACTS_DIR = Path(__file__).resolve().parent.parent / "artifacts"
 

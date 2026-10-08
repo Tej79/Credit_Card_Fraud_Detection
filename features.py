@@ -1,10 +1,8 @@
 """Raw transaction columns -> model input features.
 
 Imported by both train.py (training) and app/main.py (serving) so the
-exact same transformation runs in both places. This is the single most
-important thing to keep in sync for a real ML service: if training and
-serving ever compute features differently, predictions silently go bad
-with no error raised anywhere ("training/serving skew").
+exact same transformation runs in both places avoiding any
+training/serving skew.
 """
 import numpy as np
 import pandas as pd

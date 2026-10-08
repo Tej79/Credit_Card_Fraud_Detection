@@ -36,7 +36,7 @@ Kaggle and point `train.py` at it to reproduce.
 
 ## Problem
 
-Fraud is ~0.17% of transactions in this dataset — a realistic, heavily
+Fraud is ~0.17% of transactions in this dataset making it a realistic, heavily
 imbalanced classification problem. The two failure modes have very different
 costs: a missed fraud costs the transaction amount; a false alarm costs a
 fixed review fee. The model and its decision threshold are both built around
@@ -47,17 +47,17 @@ that asymmetry rather than optimizing accuracy or a flat F1 score.
 A few choices were made deliberately, after finding that the original
 exploratory notebook's approach overstated performance:
 
-- **Time-ordered split** (70/15/15, train/val/test) instead of a random
-  shuffle — a deployed model only ever predicts the future, so it should
-  only ever be evaluated on it.
 - **No undersampling at evaluation time.** Models are trained with class
   weights (`class_weight="balanced"` / `scale_pos_weight`) rather than by
   undersampling the training set, and every model is scored on the real,
   imbalanced validation/test distribution. Scoring on an artificially
   rebalanced set inflates precision in a way that doesn't reflect production.
-- **Scaling fit inside a pipeline, on training data only** — avoids leaking
+- **Time-ordered split** (70/15/15, train/val/test) instead of a random
+  shuffle: a deployed model only ever predicts the future, so it should
+  only ever be evaluated on it.
+- **Scaling fit inside a pipeline, on training data only**: avoids leaking
   validation/test statistics into preprocessing.
-- **PR-AUC**, not ROC-AUC or accuracy, used for model selection — ROC-AUC is
+- **PR-AUC**, not ROC-AUC or accuracy, used for model selection: ROC-AUC is
   insensitive to the absolute number of false positives when negatives vastly
   outnumber positives, which is exactly the situation here.
 - **Cost-based threshold selection.** Rather than the default 0.5 cutoff, the
@@ -65,10 +65,10 @@ exploratory notebook's approach overstated performance:
   num_flagged`, searched over a grid of candidate thresholds on the
   validation set. `review_cost = $5` is an assumption (set in `train.py`),
   not a measured figure.
-- **Test set touched exactly once** — used only to evaluate the single model
+- **Test set touched exactly once**: used only to evaluate the single model
   selected by validation PR-AUC, not to pick among models.
 - **Bootstrap confidence intervals** on all test metrics (1000 resamples,
-  with replacement) — the test set has only ~52 fraud cases, so point
+  with replacement): the test set has only ~52 fraud cases, so point
   estimates alone would be misleading without a sense of their uncertainty.
 
 ## Results
@@ -85,7 +85,7 @@ Three models compared (logistic regression, random forest, XGBoost);
 | ROC-AUC | 0.934 | — |
 
 **Cost at chosen threshold (0.184):** $2,607 vs. $6,169 if nothing were
-flagged — a ~58% reduction in fraud + review cost on the test period.
+flagged which is a ~58% reduction in fraud + review cost on the test period.
 The cost interval is wide ($494–$5,515) because a handful of large-amount
 frauds dominate the dollar total; this is flagged explicitly rather than
 hidden, and treated as a directional number, not a precise one, at this
@@ -179,7 +179,7 @@ curl -X POST https://fraud-api-314643089891.us-central1.run.app/predict \
 
 ## Known limitations
 
-- **Review cost ($5) is an assumption**, not a measured business figure —
+- **Review cost ($5) is an assumption**,
   stated explicitly so the cost numbers are read as illustrative.
 - **Dataset spans only ~2 days**, so the test set is a few hours of data and
   metric confidence intervals are correspondingly wide (see Results). More
@@ -193,8 +193,8 @@ curl -X POST https://fraud-api-314643089891.us-central1.run.app/predict \
 
 ## Next steps
 
+- Drift monitoring (e.g. PSI on key features) triggering retraining.
 - Load test the deployed endpoint for real p50/p95 latency under concurrency.
 - Terraform for the Cloud Run service + Artifact Registry (currently deployed
   manually via `gcloud`).
 - GitLab CI pipeline: lint/test → build → push → deploy on commit.
-- Drift monitoring (e.g. PSI on key features) triggering retraining.
