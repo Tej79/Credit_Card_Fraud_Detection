@@ -15,7 +15,6 @@ production ML and deployment skills end to end.
 - [x] Model training & evaluation
 - [x] Serving API (FastAPI)
 - [x] Containerized, deployed to Cloud Run
-- [ ] Load testing
 - [ ] Drift Detection
 - [ ] Terraform + CI/CD pipeline
 
