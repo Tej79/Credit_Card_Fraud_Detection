@@ -16,7 +16,8 @@ production ML and deployment skills end to end.
 - [x] Serving API (FastAPI)
 - [x] Containerized, deployed to Cloud Run
 - [ ] Load testing
-- [ ] Infra as code (Terraform) + CI/CD pipeline
+- [ ] Drift Detection
+- [ ] Terraform + CI/CD pipeline
 
 ## Repo structure
 
