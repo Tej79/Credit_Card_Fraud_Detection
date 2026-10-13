@@ -125,14 +125,14 @@ real drift is actually caught, not just theoretically detectable.
 
 **A real finding from running this against the actual dataset:** comparing
 the training reference against a held-out, chronologically later slice
-(not synthetic — the dataset's own later rows) shows genuine, persistent PSI
+shows genuine, persistent PSI
 drift in `V1`, `V3`, `V11`, and `V28` that holds up even at a 100,000-row
-comparison batch (ruling out small-sample noise — several other features
+comparison batch (ruling out small-sample noise since several other features
 that alerted at smaller batch sizes, e.g. `V15`, `V25`, dropped out as the
 batch grew, confirming those *were* noise). Since the `V` columns are PCA
 components of the original (undisclosed) features, this suggests whatever
 they're derived from has some genuine time-of-day or collection-period
-pattern — a real, if modest, distribution shift even within this dataset's
+pattern i.e. a real, if modest, distribution shift even within this dataset's
 own 2-day span. This is a legitimate reason a model trained on the earlier
 slice would benefit from periodic retraining, not an artifact of the check.
 
@@ -141,8 +141,8 @@ shorter than a full day, for a different, well-understood reason: it's
 cyclical, and a comparison window of only a few consecutive hours can't
 represent a full day's cycle, regardless of whether real drift occurred.
 PSI on cyclical features needs a comparison window spanning at least one
-full cycle to be meaningful — a known limitation of the check itself,
-documented here rather than silently excluded.
+full cycle to be meaningful which is a known limitation of the check itself,
+documented here.
 
 ```bash
 python make_test_batch.py --data creditcard.csv --n 100000
