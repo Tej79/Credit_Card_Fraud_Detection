@@ -15,9 +15,8 @@ production ML and deployment skills end to end.
 - [x] Model training & evaluation
 - [x] Serving API (FastAPI)
 - [x] Containerized, deployed to Cloud Run
-- [x] Drift monitoring (PSI-based, scheduled separately from serving/deploy)
-- [ ] Load testing
-- [ ] Infra as code (Terraform) + CI/CD pipeline
+- [ ] Drift Detection
+- [ ] Terraform + CI/CD pipeline
 
 ## Repo structure
 
@@ -89,7 +88,7 @@ Three models compared (logistic regression, random forest, XGBoost);
 | ROC-AUC | 0.934 | — |
 
 **Cost at chosen threshold (0.184):** $2,607 vs. $6,169 if nothing were
-flagged — a ~58% reduction in fraud + review cost on the test period.
+flagged which is a ~58% reduction in fraud + review cost on the test period.
 The cost interval is wide ($494–$5,515) because a handful of large-amount
 frauds dominate the dollar total; this is flagged explicitly rather than
 hidden, and treated as a directional number, not a precise one, at this
@@ -101,15 +100,14 @@ MLflow store (`mlflow ui` against `mlruns/`).
 ## Drift monitoring
 
 A model's assumptions can go stale even with no code change at all, simply
-because the real-world distribution of transactions shifts over time. This
-is checked separately from both request serving and the deploy pipeline:
+because the real-world distribution of transactions shifts over time.
 
 `drift_check.py` is designed to run on its own schedule (e.g. a daily
 Cloud Scheduler job against a small Cloud Run job).
 
 **How it works:** at training time, `train.py` freezes each feature's
-distribution — 10 quantile-based bins and the proportion of training data
-in each — to `artifacts/feature_distribution.json`. `drift_check.py` later
+distribution (10 quantile-based bins and the proportion of training data
+in each) to `artifacts/feature_distribution.json`. `drift_check.py` later
 bins a new batch of data using those same frozen bin edges and computes the
 **Population Stability Index (PSI)** per feature: 0 means identical
 proportions, and it grows as a bin's share of the new batch diverges from
