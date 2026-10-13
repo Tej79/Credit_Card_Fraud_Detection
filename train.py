@@ -30,6 +30,7 @@ from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
 from features import FEATURES, V_COLS, make_features
+from drift import build_reference
 
 SEED = 1
 REVIEW_COST = 5.0  # ASSUMPTION: $ cost of manually reviewing one flagged transaction
@@ -164,6 +165,10 @@ def main(data: str, out: str) -> None:
     out_dir = Path(out)
     out_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, out_dir / "model.joblib")
+
+    reference = build_reference(X_tr)
+    (out_dir / "feature_distribution.json").write_text(json.dumps(reference))
+
     meta = {
         "model": best,
         "threshold": thr,

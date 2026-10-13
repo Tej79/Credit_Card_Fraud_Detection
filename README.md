@@ -15,19 +15,23 @@ production ML and deployment skills end to end.
 - [x] Model training & evaluation
 - [x] Serving API (FastAPI)
 - [x] Containerized, deployed to Cloud Run
+- [x] Drift monitoring (PSI-based, scheduled separately from serving/deploy)
 - [ ] Load testing
 - [ ] Infra as code (Terraform) + CI/CD pipeline
 
 ## Repo structure
 
 ```
-train.py                  # training pipeline: split, train, evaluate, select, save
-features.py                # raw columns -> model features (shared by train + serve)
+train.py                    # training pipeline: split, train, evaluate, select, save
+features.py                 # raw columns -> model features (shared by train + serve)
+drift.py                    # PSI drift-detection utilities (shared by train + drift_check)
+drift_check.py               # standalone, scheduled: compare a new batch to the training reference
+make_test_batch.py           # generates drifted / non-drifted batches for testing drift_check.py
 app/main.py                 # FastAPI service: /predict, /health
 Dockerfile                  # serving image
 requirements-serve.txt      # deps the serving image actually needs
 requirements-train.txt      # requirements-serve.txt + MLflow
-artifacts/                  # model.joblib + metadata.json (not committed — see below)
+artifacts/                  # model.joblib, metadata.json, feature_distribution.json (not committed — see below)
 ```
 
 `creditcard.csv` and `mlruns/` are intentionally not committed (raw data and
@@ -85,7 +89,7 @@ Three models compared (logistic regression, random forest, XGBoost);
 | ROC-AUC | 0.934 | — |
 
 **Cost at chosen threshold (0.184):** $2,607 vs. $6,169 if nothing were
-flagged which is a ~58% reduction in fraud + review cost on the test period.
+flagged — a ~58% reduction in fraud + review cost on the test period.
 The cost interval is wide ($494–$5,515) because a handful of large-amount
 frauds dominate the dollar total; this is flagged explicitly rather than
 hidden, and treated as a directional number, not a precise one, at this
@@ -93,6 +97,60 @@ data scale (test set covers a few hours of a 2-day dataset).
 
 Full numbers and run history are in `artifacts/metadata.json` and the local
 MLflow store (`mlflow ui` against `mlruns/`).
+
+## Drift monitoring
+
+A model's assumptions can go stale even with no code change at all, simply
+because the real-world distribution of transactions shifts over time. This
+is checked separately from both request serving and the deploy pipeline:
+
+`drift_check.py` is designed to run on its own schedule (e.g. a daily
+Cloud Scheduler job against a small Cloud Run job).
+
+**How it works:** at training time, `train.py` freezes each feature's
+distribution — 10 quantile-based bins and the proportion of training data
+in each — to `artifacts/feature_distribution.json`. `drift_check.py` later
+bins a new batch of data using those same frozen bin edges and computes the
+**Population Stability Index (PSI)** per feature: 0 means identical
+proportions, and it grows as a bin's share of the new batch diverges from
+its training share. PSI ≥ 0.25 is flagged (`PSI_ALERT` in `drift.py`), based
+on the standard rule-of-thumb threshold from credit-risk modeling, where PSI
+originates. The script exits non-zero on any alert, so a scheduler can treat
+it as pass/fail, the same way CI treats a failed test.
+
+This project has no live production traffic yet, so there's no real new
+batch to check against day to day. `make_test_batch.py` is a stand-in: it
+carves off a recent, chronologically held-out slice of the dataset to check
+the mechanism against, and separately builds a version with an artificial
+shift (`Amount`, and a couple of `V` columns, deliberately offset) to confirm
+real drift is actually caught, not just theoretically detectable.
+
+**A real finding from running this against the actual dataset:** comparing
+the training reference against a held-out, chronologically later slice
+(not synthetic — the dataset's own later rows) shows genuine, persistent PSI
+drift in `V1`, `V3`, `V11`, and `V28` that holds up even at a 100,000-row
+comparison batch (ruling out small-sample noise — several other features
+that alerted at smaller batch sizes, e.g. `V15`, `V25`, dropped out as the
+batch grew, confirming those *were* noise). Since the `V` columns are PCA
+components of the original (undisclosed) features, this suggests whatever
+they're derived from has some genuine time-of-day or collection-period
+pattern — a real, if modest, distribution shift even within this dataset's
+own 2-day span. This is a legitimate reason a model trained on the earlier
+slice would benefit from periodic retraining, not an artifact of the check.
+
+Separately, the engineered **`hour`** feature reliably alerts on any batch
+shorter than a full day, for a different, well-understood reason: it's
+cyclical, and a comparison window of only a few consecutive hours can't
+represent a full day's cycle, regardless of whether real drift occurred.
+PSI on cyclical features needs a comparison window spanning at least one
+full cycle to be meaningful — a known limitation of the check itself,
+documented here rather than silently excluded.
+
+```bash
+python make_test_batch.py --data creditcard.csv --n 100000
+python drift_check.py --reference artifacts/feature_distribution.json --data no_drift_batch.csv
+python drift_check.py --reference artifacts/feature_distribution.json --data drift_batch.csv
+```
 
 ## Running it
 
@@ -190,11 +248,25 @@ curl -X POST https://fraud-api-314643089891.us-central1.run.app/predict \
   has been run yet against the deployed service.
 - **Features are mostly PCA-anonymized** (`V1`–`V28`), limiting feature
   engineering to `Amount` and `Time`-derived fields.
+- **PSI on the `hour` feature false-alarms on short comparison windows**
+  (see Drift monitoring). Any window shorter than a full day will flag it
+  regardless of real drift. A production version would require a minimum 
+  window length before trusting cyclical
+  features' PSI.
+- **PSI is noisy at small batch sizes.** Several features alerted at a
+  5,000-row comparison batch but not at 100,000 which means a drift check run on too
+  small a batch can produce false alarms from sampling variance alone.
+- **No live traffic yet**, so drift is currently demonstrated against
+  held-out historical data rather than real production requests.
 
 ## Next steps
 
-- Drift monitoring (e.g. PSI on key features) triggering retraining.
 - Load test the deployed endpoint for real p50/p95 latency under concurrency.
 - Terraform for the Cloud Run service + Artifact Registry (currently deployed
   manually via `gcloud`).
 - GitLab CI pipeline: lint/test → build → push → deploy on commit.
+- Schedule `drift_check.py` (Cloud Scheduler → Cloud Run job, or a GitLab
+  scheduled pipeline) and log request features in `/predict` so drift checks
+  run against real traffic instead of held-out historical data.
+- Trigger retraining automatically on a sustained drift alert, rather than
+  just reporting it.

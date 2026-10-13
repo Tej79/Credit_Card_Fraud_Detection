@@ -1,0 +1,16 @@
+FROM python:3.12-slim
+
+WORKDIR /srv
+
+COPY requirements-drift.txt .
+RUN pip install --no-cache-dir -r requirements-drift.txt
+
+COPY features.py .
+COPY drift_check.py .
+COPY drift.py .
+COPY artifacts/feature_distribution.json artifacts/feature_distribution.json
+
+# DATA_URI is set per-run by Cloud Scheduler / `gcloud run jobs execute`,
+# so the same image can check different batches without rebuilding.
+# gs:// paths work directly with pandas via gcsfs (see requirements-drift.txt).
+ENTRYPOINT ["sh", "-c", "python drift_check.py --reference artifacts/feature_distribution.json --data \"$DATA_URI\""]
